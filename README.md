@@ -1,0 +1,2 @@
+# maze-visualizer
+Maze solving
