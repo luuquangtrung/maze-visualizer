@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Maze Solver (A*) — Python in Browser (size tuỳ ý)</title>
+  <style>
+    :root{
+      --bg:#0b0c10;
+      --panel:#12131a;
+      --muted:#9aa3b2;
+      --text:#e9ecf1;
+      --border:#232538;
+
+      --cell: 22px;           /* JS sẽ override theo size */
+      --gap: 2px;
+
+      --free:#1b1d2a;
+      --obs:#0f111a;
+      --start:#1f8f5f;
+      --goal:#a63b3b;
+      --visited:#2a375a;
+      --frontier:#3a2a5a;
+      --path:#f3d36b;
+    }
+
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 20% 0%, #141529 0%, var(--bg) 55%);
+      color:var(--text);
+    }
+    .wrap{
+      max-width: 1200px;
+      margin: 18px auto;
+      padding: 0 14px 22px;
+      display:grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 14px;
+    }
+    @media (max-width: 980px){
+      .wrap{ grid-template-columns: 1fr; }
+    }
+
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      overflow:hidden;
+    }
+    .card header{
+      padding: 12px 14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,0,0,.15);
+    }
+    .card header h2{
+      margin:0;
+      font-size: 14px;
+      letter-spacing:.2px;
+      font-weight: 650;
+    }
+    .sub{
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.35;
+      margin-top:4px;
+    }
+
+    /* Controls */
+    .controls{
+      padding: 12px 14px 14px;
+      display:grid;
+      gap: 10px;
+    }
+    .row{
+      display:grid;
+      grid-template-columns: repeat(6, minmax(0,1fr));
+      gap: 10px;
+    }
+    @media (max-width: 980px){
+      .row{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+    }
+    label{
+      display:block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input[type="number"], input[type="range"], input[type="text"]{
+      width:100%;
+      padding: 10px 10px;
+      background: rgba(0,0,0,.28);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      outline: none;
+    }
+    input[type="range"]{ padding: 10px 0; }
+    .btns{
+      display:flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    button{
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      cursor:pointer;
+      font-weight: 650;
+      letter-spacing:.2px;
+      transition: transform .05s ease, background .2s ease;
+    }
+    button:hover{ background: rgba(255,255,255,.10); }
+    button:active{ transform: translateY(1px); }
+    button.primary{
+      background: rgba(243, 211, 107, .15);
+      border-color: rgba(243, 211, 107, .35);
+    }
+    button.danger{
+      background: rgba(166, 59, 59, .16);
+      border-color: rgba(166, 59, 59, .35);
+    }
+    .hint{
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,.25);
+      padding: 2px 6px;
+      border-radius: 7px;
+      color: var(--text);
+    }
+
+    /* Maze */
+    .maze-area{
+      padding: 12px 14px 14px;
+      display:grid;
+      gap: 10px;
+    }
+    .status{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .legend{
+      display:flex;
+      gap: 10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .pill{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: rgba(0,0,0,.18);
+      color: var(--muted);
+    }
+    .dot{
+      width: 10px; height: 10px;
+      border-radius: 3px;
+      background: var(--free);
+      border: 1px solid rgba(255,255,255,.08);
+    }
+
+    .maze{
+      display:grid;
+      gap: var(--gap);
+      place-content:start;
+      user-select:none;
+      width: fit-content;
+      max-width: 100%;
+      overflow:auto;
+      padding: 10px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,.2);
+    }
+    .cell{
+      width: var(--cell);
+      height: var(--cell);
+      border-radius: 6px;
+      background: var(--free);
+      border: 1px solid rgba(255,255,255,.05);
+      transition: filter .08s ease, transform .03s ease;
+    }
+    .cell:hover{ filter: brightness(1.15); }
+    .cell:active{ transform: scale(.98); }
+
+    .obs{ background: var(--obs); }
+    .start{ background: var(--start); }
+    .goal{ background: var(--goal); }
+    .visited{ background: var(--visited); }
+    .frontier{ background: var(--frontier); }
+    .path{ background: var(--path); }
+
+    /* Editor */
+    #editor{
+      height: 520px;
+      width: 100%;
+      border-top: 1px solid var(--border);
+    }
+    .small{ font-size: 11px; color: var(--muted); }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- LEFT: Maze + controls -->
+    <section class="card">
+      <header>
+        <div>
+          <h2>Maze + Visualization</h2>
+          <div class="sub">
+            Click để toggle obstacle • <kbd>Shift</kbd>+Click đặt START • <kbd>Alt</kbd>+Click đặt GOAL
+          </div>
+        </div>
+        <div class="small mono" id="pyStatus">Pyodide: loading…</div>
+      </header>
+
+      <div class="controls">
+        <div class="row">
+          <div>
+            <label>Rows</label>
+            <input id="rows" type="number" min="2" max="150" value="20">
+          </div>
+          <div>
+            <label>Cols</label>
+            <input id="cols" type="number" min="2" max="150" value="28">
+          </div>
+          <div>
+            <label>Obstacle density</label>
+            <input id="density" type="range" min="0" max="0.6" step="0.02" value="0.22">
+            <div class="small"><span id="densityVal">0.22</span></div>
+          </div>
+          <div>
+            <label>Seed</label>
+            <input id="seed" type="text" value="42">
+          </div>
+          <div>
+            <label>Animate (ms/step)</label>
+            <input id="speed" type="number" min="0" max="500" value="12">
+          </div>
+          <div>
+            <label>Cell size (px)</label>
+            <input id="cellSize" type="number" min="10" max="40" value="22">
+          </div>
+        </div>
+
+        <div class="btns">
+          <button id="genBtn">Generate maze</button>
+          <button id="clearBtn">Clear marks</button>
+          <button class="primary" id="runBtn">Run A* (Python)</button>
+          <button class="danger" id="stopBtn" disabled>Stop animation</button>
+        </div>
+
+        <div class="hint">
+          Tip: size tuỳ ý OK, nhưng nếu mày set cỡ <b>120×120</b> mà còn animate từng bước thì sẽ nặng. Lúc đó tăng speed lên hoặc disable animate (set ms/step = 0).
+        </div>
+      </div>
+
+      <div class="maze-area">
+        <div class="status">
+          <div id="statusText">Ready.</div>
+          <div class="legend">
+            <div class="pill"><span class="dot" style="background:var(--start)"></span>Start</div>
+            <div class="pill"><span class="dot" style="background:var(--goal)"></span>Goal</div>
+            <div class="pill"><span class="dot" style="background:var(--obs)"></span>Obstacle</div>
+            <div class="pill"><span class="dot" style="background:var(--frontier)"></span>Frontier</div>
+            <div class="pill"><span class="dot" style="background:var(--visited)"></span>Visited</div>
+            <div class="pill"><span class="dot" style="background:var(--path)"></span>Path</div>
+          </div>
+        </div>
+        <div id="maze" class="maze"></div>
+      </div>
+    </section>
+
+    <!-- RIGHT: Python editor -->
+    <section class="card">
+      <header>
+        <div>
+          <h2>Python box (student code)</h2>
+          <div class="sub">Bên dưới là template. Sinh viên sửa hàm <span class="mono">astar()</span> hoặc heuristic tuỳ bài.</div>
+        </div>
+        <div class="small mono" id="runInfo">—</div>
+      </header>
+      <div id="editor"></div>
+    </section>
+  </div>
+
+  <!-- Ace Editor -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.js" integrity="sha512-bpQGZKq6b52o2E6r8d8cXGZ6gQp9yYw+HqB4kE3Nbo9H7iP4aCjZt3XlJj5vXn7Q+g7b+6P4M8zv5lN0Qf8l1A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/mode-python.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/theme-tomorrow_night_bright.min.js" crossorigin="anonymous"></script>
+
+  <!-- Pyodide -->
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+
+  <script>
+    // ---------- UI helpers ----------
+    const $ = (id) => document.getElementById(id);
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+    const mazeEl = $("maze");
+    const statusText = $("statusText");
+    const pyStatus = $("pyStatus");
+    const runInfo = $("runInfo");
+
+    const rowsEl = $("rows");
+    const colsEl = $("cols");
+    const densityEl = $("density");
+    const densityVal = $("densityVal");
+    const seedEl = $("seed");
+    const speedEl = $("speed");
+    const cellSizeEl = $("cellSize");
+
+    const genBtn = $("genBtn");
+    const clearBtn = $("clearBtn");
+    const runBtn = $("runBtn");
+    const stopBtn = $("stopBtn");
+
+    densityEl.addEventListener("input", () => densityVal.textContent = Number(densityEl.value).toFixed(2));
+
+    // ---------- Maze state ----------
+    let R = 20, C = 28;
+    let grid = []; // 0 free, 1 obstacle
+    let start = [0,0];
+    let goal = [19,27];
+
+    let cells = []; // DOM cell refs
+    let animStop = false;
+
+    function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+    function setCellPx(px){
+      document.documentElement.style.setProperty("--cell", px + "px");
+    }
+
+    function idx(r,c){ return r*C + c; }
+
+    function renderMaze(){
+      mazeEl.style.gridTemplateColumns = `repeat(${C}, var(--cell))`;
+      mazeEl.innerHTML = "";
+      cells = new Array(R*C);
+
+      for(let r=0; r<R; r++){
+        for(let c=0; c<C; c++){
+          const d = document.createElement("div");
+          d.className = "cell";
+          d.dataset.r = r;
+          d.dataset.c = c;
+          d.addEventListener("click", (ev) => onCellClick(ev, r, c));
+          mazeEl.appendChild(d);
+          cells[idx(r,c)] = d;
+        }
+      }
+      refreshAllCellClasses();
+    }
+
+    function refreshAllCellClasses(){
+      for(let r=0; r<R; r++){
+        for(let c=0; c<C; c++){
+          const d = cells[idx(r,c)];
+          d.className = "cell";
+          if(grid[r][c] === 1) d.classList.add("obs");
+        }
+      }
+      // enforce start/goal not obstacle
+      grid[start[0]][start[1]] = 0;
+      grid[goal[0]][goal[1]] = 0;
+
+      cells[idx(start[0], start[1])].classList.add("start");
+      cells[idx(goal[0], goal[1])].classList.add("goal");
+    }
+
+    function clearMarks(){
+      for(const d of cells){
+        d.classList.remove("visited","frontier","path");
+      }
+      statusText.textContent = "Cleared marks.";
+    }
+
+    function onCellClick(ev, r, c){
+      if (ev.shiftKey){
+        // set start
+        start = [r,c];
+        grid[r][c] = 0;
+        clearMarks();
+        refreshAllCellClasses();
+        statusText.textContent = `Start = (${r},${c})`;
+        return;
+      }
+      if (ev.altKey){
+        // set goal
+        goal = [r,c];
+        grid[r][c] = 0;
+        clearMarks();
+        refreshAllCellClasses();
+        statusText.textContent = `Goal = (${r},${c})`;
+        return;
+      }
+      // toggle obstacle (but not start/goal)
+      if ((r === start[0] && c === start[1]) || (r === goal[0] && c === goal[1])) return;
+      grid[r][c] = grid[r][c] ? 0 : 1;
+      clearMarks();
+      refreshAllCellClasses();
+    }
+
+    // deterministic RNG from string seed
+    function mulberry32(a){
+      return function(){
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      }
+    }
+    function hashSeed(str){
+      str = String(str);
+      let h = 2166136261 >>> 0;
+      for(let i=0; i<str.length; i++){
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return h >>> 0;
+    }
+
+    function generateMaze(){
+      R = clamp(parseInt(rowsEl.value || "20", 10), 2, 150);
+      C = clamp(parseInt(colsEl.value || "28", 10), 2, 150);
+      const density = clamp(parseFloat(densityEl.value || "0.2"), 0, 0.6);
+      const seed = seedEl.value;
+
+      // cell size adaptive (optional): if huge grid, shrink a bit
+      const userPx = clamp(parseInt(cellSizeEl.value || "22", 10), 10, 40);
+      const autoPx = (R*C > 5000) ? Math.max(10, Math.min(userPx, 16)) : userPx;
+      setCellPx(autoPx);
+
+      const rng = mulberry32(hashSeed(seed));
+      grid = Array.from({length:R}, () => Array.from({length:C}, () => (rng() < density ? 1 : 0)));
+
+      start = [0,0];
+      goal = [R-1, C-1];
+      grid[start[0]][start[1]] = 0;
+      grid[goal[0]][goal[1]] = 0;
+
+      renderMaze();
+      statusText.textContent = `Generated ${R}×${C}, density=${density.toFixed(2)}, seed="${seed}".`;
+    }
+
+    // ---------- Editor ----------
+    const editor = ace.edit("editor");
+    editor.setTheme("ace/theme/tomorrow_night_bright");
+    editor.session.setMode("ace/mode/python");
+    editor.setOptions({
+      fontSize: "13px",
+      showPrintMargin: false,
+      tabSize: 2,
+      useSoftTabs: true
+    });
+
+    const templatePy = `# You get these globals from JS:
+#   GRID  : list[list[int]]  0=free, 1=obstacle
+#   START : [r,c]
+#   GOAL  : [r,c]
+#
+# Your job: implement A* and PRINT a JSON dict:
+#   {"path": [[r,c], ...], "visited": [[r,c], ...], "frontier": [[r,c], ...]}
+#
+# NOTE: Keep it lightweight. visited/frontier are optional but nice for viz.
+
+import json
+import heapq
+
+def heuristic(a, b):
+  # Manhattan distance
+  return abs(a[0]-b[0]) + abs(a[1]-b[1])
+
+def neighbors(pos, R, C):
+  r, c = pos
+  for dr, dc in ((1,0),(-1,0),(0,1),(0,-1)):
+    nr, nc = r+dr, c+dc
+    if 0 <= nr < R and 0 <= nc < C:
+      yield (nr, nc)
+
+def reconstruct(came_from, cur):
+  path = [list(cur)]
+  while cur in came_from:
+    cur = came_from[cur]
+    path.append(list(cur))
+  path.reverse()
+  return path
+
+def astar(grid, start, goal):
+  R, C = len(grid), len(grid[0])
+  s = (start[0], start[1])
+  g = (goal[0], goal[1])
+
+  open_heap = []
+  heapq.heappush(open_heap, (heuristic(s,g), 0, s))
+
+  came_from = {}
+  gscore = {s: 0}
+
+  visited_order = []
+  frontier_snap = []   # optional: store nodes pushed to frontier (order)
+
+  in_open = {s}
+
+  while open_heap:
+    f, cost, cur = heapq.heappop(open_heap)
+    if cur in in_open:
+      in_open.remove(cur)
+
+    visited_order.append([cur[0], cur[1]])
+
+    if cur == g:
+      return reconstruct(came_from, cur), visited_order, frontier_snap
+
+    for nb in neighbors(cur, R, C):
+      if grid[nb[0]][nb[1]] == 1:
+        continue
+      tentative = gscore[cur] + 1
+      if tentative < gscore.get(nb, 10**18):
+        came_from[nb] = cur
+        gscore[nb] = tentative
+        heapq.heappush(open_heap, (tentative + heuristic(nb,g), tentative, nb))
+        if nb not in in_open:
+          in_open.add(nb)
+          frontier_snap.append([nb[0], nb[1]])
+
+  return [], visited_order, frontier_snap
+
+path, visited, frontier = astar(GRID, START, GOAL)
+
+print(json.dumps({
+  "path": path,
+  "visited": visited,
+  "frontier": frontier
+}))
+`;
+    editor.setValue(templatePy, -1);
+
+    // ---------- Pyodide ----------
+    let pyodide = null;
+    async function initPy(){
+      try{
+        pyodide = await loadPyodide();
+        pyStatus.textContent = "Pyodide: ready";
+      }catch(e){
+        pyStatus.textContent = "Pyodide: failed";
+        console.error(e);
+        statusText.textContent = "Pyodide load failed. Check console / network.";
+      }
+    }
+
+    // ---------- Visualization ----------
+    function markList(list, cls){
+      for(const [r,c] of list){
+        if (r<0||r>=R||c<0||c>=C) continue;
+        const d = cells[idx(r,c)];
+        if (!d.classList.contains("start") && !d.classList.contains("goal") && !d.classList.contains("obs")){
+          d.classList.add(cls);
+        }
+      }
+    }
+
+    async function animateSteps(visited, frontier, path, speed){
+      animStop = false;
+      stopBtn.disabled = false;
+
+      // clear previous
+      clearMarks();
+      refreshAllCellClasses();
+
+      const t0 = performance.now();
+
+      // light animation:
+      // - mark visited progressively
+      // - mark frontier progressively
+      // - finally draw path
+      const maxSteps = Math.max(visited.length, frontier.length);
+      for(let i=0; i<maxSteps; i++){
+        if(animStop) break;
+        if(i < visited.length){
+          const [r,c] = visited[i];
+          const d = cells[idx(r,c)];
+          if (!d.classList.contains("start") && !d.classList.contains("goal") && !d.classList.contains("obs")){
+            d.classList.add("visited");
+          }
+        }
+        if(i < frontier.length){
+          const [r,c] = frontier[i];
+          const d = cells[idx(r,c)];
+          if (!d.classList.contains("start") && !d.classList.contains("goal") && !d.classList.contains("obs")){
+            d.classList.add("frontier");
+          }
+        }
+        if(speed > 0) await sleep(speed);
+      }
+
+      if(!animStop){
+        // draw path
+        for(const [r,c] of path){
+          if(animStop) break;
+          const d = cells[idx(r,c)];
+          if (!d.classList.contains("start") && !d.classList.contains("goal")){
+            d.classList.remove("visited","frontier");
+            d.classList.add("path");
+          }
+          if(speed > 0) await sleep(Math.max(0, Math.floor(speed/2)));
+        }
+      }
+
+      const t1 = performance.now();
+      stopBtn.disabled = true;
+
+      const msg = animStop ? "Animation stopped." : `Done. Path length=${path.length || 0}.`;
+      statusText.textContent = `${msg} (${Math.round(t1-t0)} ms viz)`;
+    }
+
+    // ---------- Run pipeline ----------
+    async function runPython(){
+      if(!pyodide){
+        statusText.textContent = "Pyodide chưa sẵn sàng.";
+        return;
+      }
+      animStop = false;
+
+      const code = editor.getValue();
+      const speed = clamp(parseInt(speedEl.value || "12", 10), 0, 500);
+
+      // prepare python globals
+      pyodide.globals.set("GRID", grid);
+      pyodide.globals.set("START", start);
+      pyodide.globals.set("GOAL", goal);
+
+      statusText.textContent = "Running Python…";
+      runInfo.textContent = "running…";
+
+      const t0 = performance.now();
+      try{
+        const out = await pyodide.runPythonAsync(code);
+        // NOTE: out is last expression result; we printed JSON, so grab stdout via pyodide's sys.stdout capture:
+        // Easiest: wrap code to return printed JSON? -> We'll do a small trick: run code and then read from a variable.
+        // But to keep simple, we re-run with stdout capture using Python's contextlib.
+      }catch(e){
+        console.error(e);
+        statusText.textContent = "Python error. Check editor code.";
+        runInfo.textContent = "error";
+        alert("Python error:\n\n" + e);
+        return;
+      }
+
+      // Proper run with stdout capture
+      const wrapped = `
+import sys, io, contextlib
+_buf = io.StringIO()
+with contextlib.redirect_stdout(_buf):
+${code.split("\n").map(l => "  " + l).join("\n")}
+_result_json = _buf.getvalue().strip().splitlines()[-1] if _buf.getvalue().strip() else ""
+_result_json
+`;
+      let jsonLine = "";
+      try{
+        jsonLine = await pyodide.runPythonAsync(wrapped);
+      }catch(e){
+        console.error(e);
+        statusText.textContent = "Python error (stdout capture).";
+        runInfo.textContent = "error";
+        alert("Python error:\n\n" + e);
+        return;
+      }
+
+      const t1 = performance.now();
+
+      if(!jsonLine){
+        statusText.textContent = "Không nhận được JSON output (mày phải print JSON cuối cùng).";
+        runInfo.textContent = "no output";
+        return;
+      }
+
+      let data = null;
+      try{
+        data = JSON.parse(jsonLine);
+      }catch(e){
+        console.error("Bad JSON:", jsonLine);
+        statusText.textContent = "Output không phải JSON hợp lệ. (Mày print cái gì thế?)";
+        runInfo.textContent = "bad json";
+        alert("Output không phải JSON hợp lệ.\n\nLast line:\n" + jsonLine);
+        return;
+      }
+
+      const visited = Array.isArray(data.visited) ? data.visited : [];
+      const frontier = Array.isArray(data.frontier) ? data.frontier : [];
+      const path = Array.isArray(data.path) ? data.path : [];
+
+      runInfo.textContent = `python ${Math.round(t1-t0)} ms`;
+      statusText.textContent = `Python OK. visited=${visited.length}, frontier=${frontier.length}, path=${path.length}. Visualizing…`;
+
+      await animateSteps(visited, frontier, path, speed);
+    }
+
+    // ---------- Events ----------
+    genBtn.addEventListener("click", generateMaze);
+    clearBtn.addEventListener("click", () => { clearMarks(); refreshAllCellClasses(); });
+    runBtn.addEventListener("click", runPython);
+    stopBtn.addEventListener("click", () => { animStop = true; stopBtn.disabled = true; });
+
+    // init
+    generateMaze();
+    initPy();
+  </script>
+</body>
+</html>
